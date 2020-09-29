@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import intervals as I
+
 import warnings
 class variable():
     def __init__(self,name,type):
