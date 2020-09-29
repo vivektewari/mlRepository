@@ -121,10 +121,10 @@ def getDiagReport(df, col=None,code=None):
 
         final['code']=code
         #print(final)
-        final.to_csv('/home/pooja/PycharmProjects/homeCredit/tests/varManagerFiles/cleaning.csv',mode = 'a', header = False)
+        final.to_csv('./report.csv',mode = 'a', header = False)
 
 class varFactory():
-    def __init__(self,varList,dataCards,diag=1,target=None,pk=None):
+    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None):
         self.varDF=varList
         self.dataCards=dataCards
         self.func={'catBin':self.factory,'0':self.doNothing}
@@ -133,7 +133,7 @@ class varFactory():
 
         self.pk=pk
         self.target = target.set_index(self.pk)
-        self.targetCol = list(target.columns)[1]
+        self.targetCol = targetCol
         self.startTime = time.time()
         self.IVreport=pd.DataFrame
 
@@ -237,7 +237,7 @@ class varFactory():
 
     def produceVar(self):
         final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
-        final.to_csv('/home/pooja/PycharmProjects/homeCredit/tests/varManagerFiles/cleaning.csv',mode = 'w', header = True)
+        final.to_csv('./report.csv',mode = 'w', header = True)
         final=pd.DataFrame()
         for d1 in self.dataCards:
             if d1.include==1:
