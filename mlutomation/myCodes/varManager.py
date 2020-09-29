@@ -122,15 +122,16 @@ def getDiagReport(df, col=None,code=None):
         final['code']=code
         #print(final)
         final.to_csv('./report.csv',mode = 'a', header = False)
+        df=0
 
 class varFactory():
-    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None):
+    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10):
         self.varDF=varList
         self.dataCards=dataCards
         self.func={'catBin':self.factory,'0':self.doNothing}
         self.diag=diag
         self.IVMan = IV(0)
-
+        self.batchSize=batchSize
         self.pk=pk
         self.target = target.set_index(self.pk)
         self.targetCol = targetCol
@@ -167,8 +168,8 @@ class varFactory():
         return t
 
 
-    def factory(self,df1,codes,var1,var2=None,batch=20):
-
+    def factory(self,df1,codes,var1,var2=None):
+        batch=self.batchSize
 
         cores = cpu_count()
         pool = Pool(processes=cores)
@@ -226,7 +227,7 @@ class varFactory():
 
                 #self.getDiagReport(temp)
                 pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
-            if i % int(batch / 2) == 20:
+            if i %  batch == 0:
                 pool.close()
                 pool.join()
                 pool = Pool(processes=cores)
