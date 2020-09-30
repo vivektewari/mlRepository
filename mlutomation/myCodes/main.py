@@ -3,7 +3,7 @@ from dataManager import dataOwner,dataObject
 from varManager import varOwner,varFactory
 import warnings
 warnings.filterwarnings ("ignore")
-baseLoc='/home/pooja/PycharmProjects/homeCredit/tests/'
+baseLoc='/home/pooja/PycharmProjects/homeCredit/tests2/'
 stage=9
 
 if stage==0:
@@ -58,5 +58,5 @@ elif stage == 9:# factory produce the vars
     varMan.load()
     dataMan.load()
     dataMan.dataCards[2].load()
-    factoryMan=varFactory(varMan.getVarDF(),dataMan.dataCards,diag=1,target=dataMan.dataCards[2].df,pk='SK_ID_CURR',targetCol='TARGET')
+    factoryMan=varFactory(varMan.getVarDF(),dataMan.dataCards,diag=1,target=dataMan.dataCards[2].df,pk='SK_ID_CURR',targetCol='TARGET',batchSize=10)
     factoryMan.produceVar()

@@ -52,7 +52,7 @@ def distReports(df,ivReport=None,detail=False):
                 final['uniqueValues'] = final['varName'].apply(lambda x: df[x].unique()[0:50])
 
 
-        if ivReport is not None :final.join(ivReport)
+        if ivReport is not None :final=final.join(ivReport)
         return final
 import numpy as np
 import matplotlib.pyplot as plt

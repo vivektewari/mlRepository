@@ -112,6 +112,8 @@ class varStore():
 def getDiagReport(df, col=None,code=None):
 
         final = distReports(df.drop(col,axis=1))
+        if 'mean' not in final.columns:
+            for i in range(0,4):final[str(i)]=""
 
         a = IV()
         binned = a.binning(df, col, maxobjectFeatures=300, varCatConvert=1)
@@ -121,11 +123,10 @@ def getDiagReport(df, col=None,code=None):
         final = final.join(final1)
 
         final['code']=code
-        #print(final)
         final.to_csv('./report.csv',mode = 'a', header = False)
-        #df=0
-        #binned=0
-        #gc.collect()
+        dfs= [df,binned,result,final,final1]
+        for d1 in dfs:del d1
+
 
 class varFactory():
     def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10):
@@ -230,11 +231,12 @@ class varFactory():
 
 
                 pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
-
+                del temp
                 if i %  batch == 0:
                     pool.close()
                     pool.join()
                     pool = Pool(processes=cores)
+                    gc.collect()
         if self.diag==1:
 
             pool.close()
@@ -264,13 +266,12 @@ class varFactory():
                             temp=self.factory(df[[v]+dict[t][v]],t,v, dict[t][v])
                     else:
                         temp=self.factory(df[dict[t]],t,dict[t])
-                    final=final.append(temp)
-                    print(final.shape)
+                    if self.diag!=1:final=final.append(temp)
+
 
 
         print(time.time()-self.startTime)
-        if self.diag==1: self.IVreport
-        else :return final
+        return final
 
 
 
