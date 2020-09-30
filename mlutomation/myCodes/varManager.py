@@ -88,6 +88,9 @@ class varStore():
                             varObjectsfeatured.append(
                                 rawVar(name=c[0].name + "|" + c[1].name, id=self.__varCount, dataset=source,
                                        pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type))
+                            # varObjectsfeatured.append(
+                            #     rawVar(name=c[1].name + "|" + c[0].name, id=self.__varCount, dataset=source,
+                            #        pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type))
                             self.__varCount += 1
 
                         else:pass
@@ -161,8 +164,10 @@ class varFactory():
         for t in transformation:
             dict1={}
             df1 = df[df['transformed'] == t]
-            if df1['var2'].values[0]==None:dict[t]=list(df1['var1'])
+            if df1['var2'].values[0]==None :
+                dict[t]=list(df1['var1'])
             else:
+                var1=df1['var1']
                 for v in var1:
                     dict1[v]=list(df1[df1['var1']==v]['var2'])
                 dict[t]=dict1
@@ -189,28 +194,27 @@ class varFactory():
 
         if self.diag!=1:
             numberOfBatches=1
-            batch=np.inf
+            batch=1234567
         for i in range(0, numberOfBatches):
+
             varCurtailed = vars[i * batch:min(i * batch + batch,total_var)]
             for c in code:
                 t=c.split(';')
 
                 if t[0]=='catBin':
 
-                        temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
-                        temp=temp.astype(str)
-                        for v in varCurtailed:
-                            temp[v+"|"+var1]=temp[var1]+ "_&_" + temp[v]
-                        temp.drop([var1]+varCurtailed,axis=1)
-
-
+                    temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
+                    temp=temp.astype(str)
+                    for v in varCurtailed:
+                        temp[var1+"|"+v]=temp[var1]+ "_&_" + temp[v]
+                    temp=temp.drop([var1]+varCurtailed,axis=1)
 
                 elif t[0]=='m':
                     temp = df1[varCurtailed].multiply(df1[var1])
-                    temp.columns = [str(var1 + "|").join(col) for col in varCurtailed]
+                    temp.columns = [var1+"|"+col  for col in varCurtailed]
                 elif t[0]=='div':
                     temp = df1[varCurtailed].div(df1[var1], axis = 0)
-                    temp.columns = [col+"|" +var1 for col in varCurtailed]
+                    temp.columns = [var1+"|"+col  for col in varCurtailed]
                     v=0
                 elif t[0]=='0':
                     temp=df1[varCurtailed]
@@ -241,14 +245,16 @@ class varFactory():
 
             pool.close()
             pool.join()
-            pool = Pool(processes=cores)
             return None
-        else :return temp
+        else :
+            temp.columns=[d+codes for d in temp.columns]
+            return temp
 
-    def produceVar(self):
+    def produceVar(self,indexes=None):
         final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
         final.to_csv('./report.csv',mode = 'w', header = True)
-        final=pd.DataFrame()
+        final=pd.DataFrame(index=indexes)
+        final['f']=0
         for d1 in self.dataCards:
             if d1.include==1:
                 dict = self.break1(d1.name)
@@ -256,17 +262,19 @@ class varFactory():
                 d1.load()
 
 
-                df=d1.df
+                df=d1.df[0:100]
                 #if self.targetCol in df.columns: df = df.drop(self.targetCol, axis=1)
                 df=df.set_index(self.pk)
                 for t in dict.keys():
                     print(t)
                     if type(dict[t])!=list:
                         for v in dict[t].keys():
+                            if len(dict[t][v])==0 :continue
                             temp=self.factory(df[[v]+dict[t][v]],t,v, dict[t][v])
+                            if self.diag != 1: final = final.join(temp)
                     else:
                         temp=self.factory(df[dict[t]],t,dict[t])
-                    if self.diag!=1:final=final.append(temp)
+                        if self.diag!=1:final=final.join(temp)
 
 
 
