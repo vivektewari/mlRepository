@@ -55,8 +55,9 @@ class IV():
         :return: Dataframe,float | Datatframe having all the partion of the variable . IV value is a number .
         """
         lst = []
-        for i in range(dataset[feature].nunique()):
-            val = list(dataset[feature].unique())[i]
+        uniqueValues=list(dataset[feature].unique())
+        for i in range(len(uniqueValues)):
+            val = uniqueValues[i]
             lst.append({
                 'Value': val,
                 'All': dataset[dataset[feature] == val].count()[feature],

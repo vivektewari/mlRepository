@@ -1,7 +1,9 @@
 from projectManager import  projectOwner
 from dataManager import dataOwner,dataObject
 from varManager import varOwner,varFactory
-baseLoc='/home/pooja/PycharmProjects/homeCredit/tests2/'
+import warnings
+warnings.filterwarnings ("ignore")
+baseLoc='/home/pooja/PycharmProjects/homeCredit/tests/'
 stage=9
 
 if stage==0:

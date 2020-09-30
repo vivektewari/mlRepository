@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from iv import IV
 import time
+import gc
 from multiprocessing import Pool, Process, cpu_count
 class varInterface(ABC):
     def __init__(self,name,id,dataset,pk,rk=None,type=None,transformed=0):
@@ -110,7 +111,7 @@ class varStore():
 
 def getDiagReport(df, col=None,code=None):
 
-        final = distReports(df)
+        final = distReports(df.drop(col,axis=1))
 
         a = IV()
         binned = a.binning(df, col, maxobjectFeatures=300, varCatConvert=1)
@@ -122,7 +123,9 @@ def getDiagReport(df, col=None,code=None):
         final['code']=code
         #print(final)
         final.to_csv('./report.csv',mode = 'a', header = False)
-        df=0
+        #df=0
+        #binned=0
+        #gc.collect()
 
 class varFactory():
     def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10):
@@ -225,16 +228,20 @@ class varFactory():
                     temp['TARGET']=tar
 
 
-                #self.getDiagReport(temp)
+
                 pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
-            if i %  batch == 0:
-                pool.close()
-                pool.join()
-                pool = Pool(processes=cores)
 
+                if i %  batch == 0:
+                    pool.close()
+                    pool.join()
+                    pool = Pool(processes=cores)
+        if self.diag==1:
 
-        else:
-            return temp
+            pool.close()
+            pool.join()
+            pool = Pool(processes=cores)
+            return None
+        else :return temp
 
     def produceVar(self):
         final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
@@ -258,6 +265,7 @@ class varFactory():
                     else:
                         temp=self.factory(df[dict[t]],t,dict[t])
                     final=final.append(temp)
+                    print(final.shape)
 
 
         print(time.time()-self.startTime)
