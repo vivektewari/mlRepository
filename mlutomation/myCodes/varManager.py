@@ -179,7 +179,7 @@ class varFactory():
 
     def factory(self,df1,codes,var1,var2=None):
         batch=self.batchSize
-
+        #ToDo :add a condition so that data been first subset basis of indexes availaible in target
         cores = cpu_count()
         pool = Pool(processes=cores)
 
@@ -191,10 +191,6 @@ class varFactory():
         total_var = len(list(vars))
         numberOfBatches = int(total_var/ batch)+1
 
-
-        if self.diag!=1:
-            numberOfBatches=1
-            batch=1234567
         for i in range(0, numberOfBatches):
 
             varCurtailed = vars[i * batch:min(i * batch + batch,total_var)]
@@ -223,20 +219,20 @@ class varFactory():
                 elif t[0]=='slice':pass
                 else :temp=df1
 
-            if self.diag==1:
                 if firstTime:
-
-                    temp=temp.join( self.target[self.targetCol])
-                    tar=temp[self.targetCol]
+                    if self.diag == 1:
+                        temp=temp.join( self.target[self.targetCol])
+                        tar=temp[self.targetCol]
+                    else:output=temp
                     firstTime=False
                 else:
-                    temp['TARGET']=tar
-
-
-
-                pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
-                del temp
-                if i %  batch == 0:
+                    if self.diag != 1:
+                        output = pd.concat([output, temp],axis=1)
+                    else:
+                        temp['TARGET'] = tar
+                        pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
+                    del temp
+                if i %  batch == 0 and self.diag==1:
                     pool.close()
                     pool.join()
                     pool = Pool(processes=cores)
@@ -247,14 +243,14 @@ class varFactory():
             pool.join()
             return None
         else :
-            temp.columns=[d+codes for d in temp.columns]
-            return temp
+            output.columns=[d+codes for d in output.columns]
+            return output
 
-    def produceVar(self,indexes=None):
-        final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
-        final.to_csv('./report.csv',mode = 'w', header = True)
-        final=pd.DataFrame(index=indexes)
-        final['f']=0
+    def produceVar(self,indexes=None,loc=""):
+        if self.diag==1:
+            final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
+            final.to_csv('./report.csv',mode = 'w', header = True)
+        fileCount=0
         for d1 in self.dataCards:
             if d1.include==1:
                 dict = self.break1(d1.name)
@@ -262,19 +258,54 @@ class varFactory():
                 d1.load()
 
 
-                df=d1.df[0:100]
+
                 #if self.targetCol in df.columns: df = df.drop(self.targetCol, axis=1)
+                df=d1.df
                 df=df.set_index(self.pk)
+                if indexes is not None:targetIndex=indexes
+                elif self.target is not None:targetIndex=self.target.index
+                else :targetIndex=df.index
+                df=df.loc[targetIndex]
+                final = pd.DataFrame(index=targetIndex)
+
                 for t in dict.keys():
                     print(t)
                     if type(dict[t])!=list:
                         for v in dict[t].keys():
                             if len(dict[t][v])==0 :continue
                             temp=self.factory(df[[v]+dict[t][v]],t,v, dict[t][v])
-                            if self.diag != 1: final = final.join(temp)
+                            if self.diag != 1:
+                                final = final.join(temp)
+
+                                if final.shape[1]>self.batchSize:
+                                    print("Creating Dataset no.:"+str(fileCount))
+                                    final.to_csv(loc+str(fileCount)+".csv")
+                                    final=final[[]]
+                                    fileCount+=1
+
                     else:
                         temp=self.factory(df[dict[t]],t,dict[t])
-                        if self.diag!=1:final=final.join(temp)
+                        if self.diag!=1:
+                            final=final.join(temp)
+                            if final.shape[0] > self.batchSize:
+                                print("Creating Dataset no.:" + str(fileCount))
+                                final.to_csv(loc + str(fileCount) + ".csv")
+                                fileCount += 1
+                                final = final[[]]
+
+        if self.diag!=1:
+                final.to_csv(loc + str(fileCount) + ".csv")
+                final = final[[]]
+                fileCount += 1
+
+                for i in range(fileCount):
+                    print("joining"+str(i))
+                    temp=pd.read_csv(loc + str(i) + ".csv")
+                    final=final.join(temp.set_index(self.pk))
+
+
+
+
 
 
 

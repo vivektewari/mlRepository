@@ -1,4 +1,5 @@
 from projectManager import  projectOwner
+from dataExploration import distReports
 from dataManager import dataOwner,dataObject
 from varManager import varOwner,varFactory
 from varclushi import VarClusHi
@@ -7,7 +8,7 @@ import pandas as pd
 import warnings
 warnings.filterwarnings ("ignore")
 baseLoc='/home/pooja/PycharmProjects/homeCredit/tests2/'
-stage=11
+stage=13
 
 if stage==0:
     projectMan=projectOwner(loc='/home/pooja/PycharmProjects/homeCredit/')
@@ -78,11 +79,38 @@ elif stage==11:#produce the selected variable
     dataMan.dataCards[2].load()
     finalStoreCard=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/sel.csv')
     factoryMan = varFactory(finalStoreCard, dataMan.dataCards, diag=0, target=dataMan.dataCards[2].df,
-                            pk='SK_ID_CURR',targetCol='TARGET')
-    R=factoryMan.produceVar(indexes=dataMan.dataCards[2].df['SK_ID_CURR'][0:100])
+                            pk='SK_ID_CURR',targetCol='TARGET',batchSize=50)
+    R=factoryMan.produceVar(indexes=dataMan.dataCards[2].df['SK_ID_CURR'],loc='/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/temp/')
+    print(R.shape)
     R.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata.csv')
 
-elif stage==12:#try varcluss
+elif stage==12:#saving a binned version:
+    a=IV(getWoe=1,verbose=1)
+    dataMan.load()
+    dataMan.dataCards[2].load()
+
+    train = pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata1.csv',nrows=100000)
+    train=train.set_index(dataMan.pk).join(dataMan.dataCards[2].df.set_index(dataMan.pk))
+
+    binned = a.binning(train, 'TARGET', maxobjectFeatures=300, varCatConvert=1)
+    ivData = a.iv_all(binned, 'TARGET')
+    converted_train = a.convertToWoe(train)
+    converted_train.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata_woe.csv')
+
+
+elif stage == 13:  # saving a binned version:
+    converted_train=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata_woe1.csv')
+    converted_train = converted_train.drop('Unnamed: 0', axis=1)
+    d=distReports(converted_train)
+
+    d.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/distr.csv')
+    converted_train=converted_train.set_index('SK_ID_CURR')
+    demo1_vc = VarClusHi(converted_train, maxeigval2=1, maxclus=None)
+    demo1_vc.varclus(speedup=True)
+    f = demo1_vc.info
+    demo1_vc.rsquare.to_csv(baseLoc + "varluss.csv")
+
+elif stage == 14:
     data=pd.read_csv('/home/pooja/PycharmProjects/datanalysis/feature_cross/train_woe.csv')
     data=data.drop('trainBinned.csv',axis=1)
     # a=IV()

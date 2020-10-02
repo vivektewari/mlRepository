@@ -35,7 +35,7 @@ class variable():
 
 
 class IV():
-    def __init__(self,getWoe=0):
+    def __init__(self,getWoe=0,verbose=0):
         """
         :param variables: variables Dict of variable |
 
@@ -46,6 +46,7 @@ class IV():
 
         else :self.getWoe=0
         self.modeBinary=1
+        self.verbose=verbose
     def calculate_woe_iv(self,dataset, feature, target):
         """
 
@@ -121,7 +122,9 @@ class IV():
 
         df1=df.replace(np.inf,np.nan)
         output=df1[[]]
+        if self.verbose==1:print("starting convertToWoe")
         for var in self.variables.values():
+            if self.verbose==1:print(var.name)
             temp=df1[[var.name]]
             #print(var.name,var.type)
             missings = temp[temp.isnull().any(axis=1)].index # 'getting missing dataset'
@@ -200,7 +203,7 @@ class IV():
         :return: Dataframe|Binned variable with same Shape[0] but different Shape[1] depending on varCatConvert use.
         """
         output = pd.DataFrame(index=df.index, columns=[])
-        df=df.replace(np.inf,np.nan)
+        df=df.replace([np.inf,-np.inf],np.nan)
         objectCols = list(df.select_dtypes(include=['object']).columns)
         allCols = df.columns
         if target is not None: allCols = list(set(allCols) - set([target]))
@@ -212,8 +215,9 @@ class IV():
         numCats = list(uniques[uniques['nuniques'] < 50].index)
         catCols = objectCols + numCats
         contCols = list(set(allCols) - set(catCols))
-
+        if self.verbose == 1: print("starting binning")
         for feature in contCols:
+            if self.verbose == 1: print(feature)
             temp = df[[feature]]
             #print(feature)
             missings = temp[temp.isnull().any(axis=1)]  # 'getting missing dataset'
@@ -239,6 +243,7 @@ class IV():
             output = output.join(temp.append(missings))
             # print(output.shape[0])
         for feature in catCols:
+            if self.verbose == 1: print(feature)
             # print(feature)
             temp = df[[feature]]
             temp = temp.fillna('Missing')
@@ -277,10 +282,11 @@ class IV():
         :param modeBinary: 1 or 0|
         :return:
         """
-        rowCount=X.shape[0]
+        if self.verbose == 1: print("starting IV")
         ivData=pd.DataFrame()
         #ivData=pd.DataFrame(index=X.columns,columns=['ivValue','WoE','Dist_Good','Dist_Bad','%popuation','badRate','variable'])
         for col in X.columns:
+            if self.verbose == 1: print(col)
             if col == target: continue
             else:
                 #print('WoE and IV for column: {}'.format(col))
