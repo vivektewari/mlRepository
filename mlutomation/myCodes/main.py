@@ -101,9 +101,9 @@ elif stage==12:#saving a binned version:
 elif stage == 13:  # saving a binned version:
     converted_train=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata_woe1.csv')
     converted_train = converted_train.drop('Unnamed: 0', axis=1)
-    d=distReports(converted_train)
+    #d=distReports(converted_train)
 
-    d.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/distr.csv')
+    #d.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/distr.csv')
     converted_train=converted_train.set_index('SK_ID_CURR')
     demo1_vc = VarClusHi(converted_train, maxeigval2=1, maxclus=None)
     demo1_vc.varclus(speedup=True)
