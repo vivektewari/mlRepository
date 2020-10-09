@@ -1,4 +1,5 @@
 from projectManager import  projectOwner
+from commonFuncs import packing
 from dataExploration import distReports,plotGrabh
 from dataManager import dataOwner,dataObject
 from varManager import varOwner,varFactory
@@ -6,15 +7,18 @@ from varclushi import VarClusHi
 from iv import IV
 import pandas as pd
 import warnings
+import time
+import copy
+start=time.time()
 warnings.filterwarnings ("ignore")
-baseLoc='/home/pooja/PycharmProjects/homeCredit/tests2/'
+baseLoc='/home/pooja/PycharmProjects/homeCredit/' #tests2/' #'/home/pooja/PycharmProjects/homeCredit/'
 stage=12
 
 if stage==0:
     projectMan=projectOwner(loc='/home/pooja/PycharmProjects/homeCredit/')
     projectMan.initializeFolders()
 if stage>3:
-    folder='train/cleaned/'
+    folder='/dataManagerFiles/test/cleaned/'
     dataMan = dataOwner(loc=baseLoc + 'dataManagerFiles/', pk='SK_ID_CURR')
     varMan = varOwner(loc=baseLoc + 'varManagerFiles/', pk='SK_ID_CURR')
 
@@ -61,9 +65,11 @@ elif stage == 8:# getting initial reorts for data cleaning
 elif stage == 9:# factory produce the vars
     varMan.load()
     dataMan.load()
-    dataMan.dataCards[2].load()
-    factoryMan=varFactory(varMan.getVarDF(),dataMan.dataCards,diag=1,target=dataMan.dataCards[2].df,pk='SK_ID_CURR',targetCol='TARGET',batchSize=10)
-    factoryMan.produceVar()
+    dataMan.dataCards[7].load()
+    factoryMan=varFactory(varMan.getVarDF(),dataMan.dataCards,diag=0,pk='SK_ID_CURR',targetCol='TARGET',batchSize=10)
+    R=factoryMan.produceVar(indexes=dataMan.dataCards[7].df[dataMan.pk])
+    print(R.shape)
+    R.to_csv(dataMan.loc + folder + '/seldata.csv')
 elif stage==10: #getting the selected variable
     select=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/report1.csv')
     select=select[select['select']==1].rename(columns={'varName':'name','code':'transformed'})
@@ -76,38 +82,89 @@ elif stage==10: #getting the selected variable
     finalStoreCard.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/sel.csv')
 elif stage==11:#produce the selected variable
     dataMan.load()
+    varMan.load()
     dataMan.dataCards[2].load()
-    finalStoreCard=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/sel.csv')
-    factoryMan = varFactory(finalStoreCard, dataMan.dataCards, diag=0, target=dataMan.dataCards[2].df,
-                            pk='SK_ID_CURR',targetCol='TARGET',batchSize=50)
+
+
+    factoryMan = varFactory(varMan.getVarDF(), dataMan.dataCards, diag=0, target=dataMan.dataCards[2].df,
+                            pk='SK_ID_CURR',targetCol='TARGET',batchSize=20,train=0)
+
+    a=IV(getWoe=1)
+    a.load('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/',name='ivResults')
+    factoryMan.IVMan=a
+    print("starting production")
     R=factoryMan.produceVar(indexes=dataMan.dataCards[2].df['SK_ID_CURR'],loc='/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/temp/')
     print(R.shape)
-    R.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata.csv')
+    R.to_csv(baseLoc +folder+'/seldataTrial.csv')
 
 elif stage==12:#saving a binned version:
+    a = IV(getWoe=1, verbose=1)
+    dataMan.load()
+    dataMan.dataCards[2].load()
+    final = pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/comb1.csv')  # added post run
+    final = final[final['select2'] == 1]
+    vars = list(final['Variable'])
+    train = pd.read_csv(baseLoc+folder+'/seldataTrial.csv')
+    train = train.set_index(dataMan.pk)
+    train = train[vars]
+    #train = train.join(dataMan.dataCards[2].df.set_index(dataMan.pk))
+
+    new = IV()
+    new.load("/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/", 'final_woe')
+    converted_train = new.convertToWoe(train, binningOnly=0)
+    converted_train.to_csv(baseLoc +folder+'/seldata_woeFiletred_ramJaney.csv')
+    # c = converted_train2.eq(converted_train2)
+    # d = c.all()
+    # d.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/truth.csv')
+elif stage==13:
+    pass
     a=IV(getWoe=1,verbose=1)
     dataMan.load()
     dataMan.dataCards[2].load()
     final = pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/comb1.csv') #added post run
     final = final[final['select2'] == 1]
     vars = list(final['Variable'])
-    train = pd.read_csv('/home/pooja/PycharmProjects/homeCredit/dataManagerFiles/train/cleaned/seldataTrial.csv')
-    train = train.set_index(dataMan.pk)
-    train=train[vars]
-    train=train.join(dataMan.dataCards[2].df.set_index(dataMan.pk))
+    train = pd.read_csv('/home/pooja/PycharmProjects/homeCredit/dataManagerFiles/train/application_train.csv')
+    train = train.set_index(dataMan.pk).drop('Unnamed: 0',axis=1)
+    #train=train[vars]
+    train=train.join(dataMan.dataCards[2].df.set_index(dataMan.pk))#joining target
 
     binned = a.binning(train, 'TARGET', maxobjectFeatures=300, varCatConvert=1)
-    ivData = a.iv_all(binned, 'TARGET')
-
-    converted_train = a.convertToWoe(train,binningOnly=0)
-    a.saveVarcards("/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/",'final_woe')
-    new=IV()
-    new.load("/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/",'final_woe')
-    converted_train2 = new.convertToWoe(train, binningOnly=0)
-    converted_train.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata_woeFiletred_ramJaney.csv')
-    c = converted_train2.eq(converted_train2)
-    d = c.all()
+    c1 = copy.deepcopy(a.variables)
+    a.saveVarcards('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/',name='ivResults')
+    a = IV(getWoe=1, verbose=1)
+    a.load('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/',name='ivResults')
+    binned2=a.convertToWoe(train,'TARGET',binningOnly=1)
+    c=binned.eq(binned2)
+    d=c.all()
     d.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/truth.csv')
+elif stage == 99:pass
+    #c=a.iv_all(binned,'TARGET')
+    #c=copy.deepcopy(a.variables)
+    #x=packing.strToList(a.variables[0].bins)
+    # var1=list(c.values())
+    # var2=list(a.variables.values())
+    # print('s')
+    # for i in range(len(var1)):
+    #     #print(var1[i].name)
+    #     t=True
+    #     try:
+    #         g = [list(var1[i].catDictionary.keys())[j] == list(var2[i].catDictionary.keys())[j] for j in
+    #                 range(len(list(var2[i].catDictionary.keys())))]
+    #         t=all(list(var1[i].catDictionary.values())[j]==list(var2[i].catDictionary.values())[j] for j in range(len(list(var2[i].catDictionary.keys()))))
+    #     except:
+    #         print(type(var1[i].catDictionary))
+    #     if not t:
+    #         print(var1[i].name)
+            # for j in range(len(var1[i].bins)):
+            #     print(var1[i].bins[j]==var2[i].bins[j])
+    #ivData = a.iv_all(binned, 'TARGET')
+    # for folder in ['valid/cleaned/']:#,'test/cleaned/']:
+    #     candidate=pd.read_csv('/home/pooja/PycharmProjects/homeCredit/dataManagerFiles/'+folder+'seldata.csv',nrows=100)
+    #     candidate['Unnamed: 0'] = 0
+    #     converted_train = a.convertToWoe(candidate.set_index(dataMan.pk))
+    #     converted_train.to_csv('/home/pooja/PycharmProjects/homeCredit/dataManagerFiles/'+folder+'seldata_woeFiletred2.csv')
+
     # train = pd.read_csv("/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/seldata_woeFiletred.csv")  ####'/home/pooja/PycharmProjects/datanalysis/finalDatasets/final.csv')
     #
     # tar = pd.read_csv("/home/pooja/PycharmProjects/homeCredit/tests2/dataManagerFiles/train/target.csv")
@@ -153,5 +210,7 @@ elif stage==16:#get the plots
 elif stage ==17:#make a prediction
    pass
 
+print(time.time()-start)
 
-
+if __name__=='__main__':
+    pass

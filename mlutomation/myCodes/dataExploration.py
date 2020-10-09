@@ -68,7 +68,6 @@ def plotGrabh(df,target,location):
         contCols=list(set(allCols)-set(catCols))
 
 
-
         for col in catCols:
                 fig = plt.figure()
                 temp=df[[col]].fillna('Missing')
@@ -95,6 +94,7 @@ def plotGrabh(df,target,location):
                 ax = sns.boxplot(x=col,hue_order=target,data=df)
                 #ax0 = fig.add_subplot(3, 3, 2)
                 plt.savefig(location + col + '_blot.png')
+
 
 def corrGraph(df, features,location=None):
         cm = df[features].corr()

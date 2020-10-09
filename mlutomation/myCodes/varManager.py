@@ -10,7 +10,7 @@ import time
 import gc
 from multiprocessing import Pool, Process, cpu_count
 class varInterface(ABC):
-    def __init__(self,name,id,dataset,pk,rk=None,type=None,transformed=0):
+    def __init__(self,name,id=None,dataset=None,pk=None,rk=None,type=None,transformed=0):
 
         self.name=name
         self.id=id
@@ -29,7 +29,7 @@ class compositeVar(varInterface):
         self.vars = vars
         self.operator = operator
         self.aggregator = aggregator
-        self.varName = ["_".join(v) for v in vars.name][0]+"_"+operator
+        self.varName = ["|".join(v) for v in vars.name][0]+"_"+operator
         self.varID=varID
         self.pk=pk
         self.source=set([v for v in vars.source])
@@ -132,7 +132,7 @@ def getDiagReport(df, col=None,code=None):
 
 
 class varFactory():
-    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10):
+    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10,train=1):
         self.varDF=varList
         self.dataCards=dataCards
         self.func={'catBin':self.factory,'0':self.doNothing}
@@ -140,10 +140,11 @@ class varFactory():
         self.IVMan = IV(0)
         self.batchSize=batchSize
         self.pk=pk
-        self.target = target.set_index(self.pk)
+        if target is not None:self.target = target.set_index(self.pk)
         self.targetCol = targetCol
         self.startTime = time.time()
         self.IVreport=pd.DataFrame
+        self.train=train
 
 
     def break1(self,source):
@@ -198,8 +199,8 @@ class varFactory():
                 t=c.split(';')
 
                 if t[0]=='catBin':
-
-                    temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
+                    if self.train ==0:temp=self.IVMan.convertToWoe(df1[varCurtailed+[var1]],binningOnly=1)
+                    else:temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
                     temp=temp.astype(str)
                     for v in varCurtailed:
                         temp[var1+"|"+v]=temp[var1]+ "_&_" + temp[v]
@@ -286,8 +287,8 @@ class varFactory():
                     else:
                         temp=self.factory(df[dict[t]],t,dict[t])
                         if self.diag!=1:
-                            final=final.join(temp)
-                            if final.shape[0] > self.batchSize:
+                            if temp is not None:final=final.join(temp)
+                            if final.shape[1] > self.batchSize:
                                 print("Creating Dataset no.:" + str(fileCount))
                                 final.to_csv(loc + str(fileCount) + ".csv")
                                 fileCount += 1
@@ -313,10 +314,6 @@ class varFactory():
         return final
 
 
-
-
-
-
     def divFact(self):pass
     def multFact(self):pass
     def diagnostics(self):pass
@@ -340,12 +337,12 @@ class varOwner():
         temp = dataObject(loc=self.loc, name="book")
         temp.load()
         return temp.df
-    def load(self):
-        temp = dataObject(loc=self.loc, name="book")
-        temp.load()
-        self.varCards=dfToObject(temp.df, varInterface)
-
-        self.varCards=dfToObject(temp.df,rawVar)
+    def load(self,varClass=varInterface,temp=None):
+        if temp is None:
+            temp = dataObject(loc=self.loc, name="book")
+            temp.load()
+        self.varCards=dfToObject(temp.df, varClass)
+        #self.varCards=dfToObject(temp.df,rawVar)   don'tremeber why its here
     def addVarFromDataObjects(self,dataObjectList):
         for d in dataObjectList:
             if d.include==1:
@@ -362,6 +359,7 @@ class varOwner():
         dataList=dataObject(df=frame,name='book')
         dataList.save(self.loc)
 
+if __name__=='__main__':
 
 
 

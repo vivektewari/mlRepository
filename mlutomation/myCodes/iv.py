@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
-
+from commonFuncs import objectTodf,dfToObject,packing
 import warnings
+from dataManager import dataObject
+
 class variable():
-    def __init__(self,name,type):
+    def __init__(self,name,type,bins=[],woe=[],missingWoe=0,catDictionary={}):
         """
         :param name: string
         :param type: string|dtype cont or object
@@ -11,10 +13,10 @@ class variable():
         """
         self.name=name
         self.type=type
-        self.bins=[]
-        self.woe=[]
-        self.missingWoe=0
-        self.catDictionary={}
+        self.bins=bins
+        self.woe=woe
+        self.missingWoe=missingWoe
+        self.catDictionary=catDictionary
     def addMap(self,bin,value1=None):
         if bin in self.map.keys(): warnings.warn('Bin already exist. Bin value has been over ridden')
         self.map[bin]=value1
@@ -35,7 +37,7 @@ class variable():
 
 
 class IV():
-    def __init__(self,getWoe=0,verbose=0):
+    def __init__(self,getWoe=0,verbose=0,loc=None):
         """
         :param variables: variables Dict of variable |
 
@@ -47,6 +49,33 @@ class IV():
         else :self.getWoe=0
         self.modeBinary=1
         self.verbose=verbose
+        self.loc=None
+
+    def saveVarcards(self,loc=None,name='ivReport'):
+        cards=self.variables.values()
+        for c in cards:
+            c.bins=packing.pack(c.bins)
+            c.woe = packing.pack(c.woe)
+            c.catDictionary = packing.pack(c.catDictionary)
+        frame = objectTodf(cards)
+        dataList = dataObject(df=frame, name=name)
+        if loc is not None:dataList.save(loc)
+        else :dataList.save(loc)
+    def load(self,loc=None,name='ivReport'):
+        if loc is not None:temp = dataObject(loc=loc, name=name)
+        else : dataObject(loc=self.loc, name=name)
+        temp.load()
+        temp=dfToObject(temp.df, variable)
+        dict={}
+        cards = temp
+        for c in cards:
+            print(c.name)
+            c.bins=packing.unpack(c.bins)
+            c.woe = packing.unpack(c.woe)
+            c.catDictionary = packing.unpack(c.catDictionary)
+            dict[c.name]=c
+
+        self.variables=dict
     def calculate_woe_iv(self,dataset, feature, target):
         """
 
@@ -112,7 +141,7 @@ class IV():
         return dset1, iv
 
 
-    def convertToWoe(self,df,target=None):
+    def convertToWoe(self,df,target=None,binningOnly=0):
         """
 
         :param df:DataFrame|on which IV needs to be binning needs to be applied
@@ -123,69 +152,46 @@ class IV():
         df1=df.replace(np.inf,np.nan)
         output=df1[[]]
         if self.verbose==1:print("starting convertToWoe")
+
         for var in self.variables.values():
-            if self.verbose==1:print(var.name)
-            temp=df1[[var.name]]
-            #print(var.name,var.type)
-            missings = temp[temp.isnull().any(axis=1)].index # 'getting missing dataset'
-            temp.loc[missings,[var.name]] =var.missingWoe
-            remainingIndexes=temp.drop(missings,axis=0).index
-            #temp = temp.drop(missings.index, axis=0)  # 'non missing dataset'
-            if var.type == 'cat':
-                indexes = []
-                newCats = list(set(temp[var.name].unique()) - set(var.catDictionary.keys()))
-                remainingIndexes=remainingIndexes #.to_list()
-                if len(newCats) > 0:  # new category which is not in train sample
-                    warnings.warn(var.name + ":New category found, assigning missing mapping")
-                    indexes = []  # collecting indexes with new value
-                    for element in newCats:
-                        indexes = indexes+temp[temp[var.name] == element].index.to_list()
-                    temp.loc[indexes,[var.name]]= var.missingWoe
-                    remainingIndexes=list(temp.drop(indexes,axis=0).index)
-                    #temp2 = temp.drop(indexes, axis=0)
+            if var.name in df.columns:
+                if self.verbose==1:print(var.name)
+                temp=df1[[var.name]]
+                #print(var.name,var.type)
+                missings = temp[temp.isnull().any(axis=1)].index # 'getting missing dataset'
+                if binningOnly==0:temp.loc[missings,[var.name]] =var.missingWoe
+                else :temp.loc[missings,[var.name]] ='Missing'
+                remainingIndexes=temp.drop(missings,axis=0).index
+                #temp = temp.drop(missings.index, axis=0)  # 'non missing dataset'
+                if var.type == 'cat' and binningOnly==0:
+                    indexes = []
+                    newCats = list(set(temp[var.name].unique()) - set(var.catDictionary.keys()))
+                    remainingIndexes=remainingIndexes
+                    if len(newCats) > 0:  # new category which is not in train sample
+                        warnings.warn(var.name + ":New category found, assigning missing mapping")
+                        indexes = []  # collecting indexes with new value
+                        for element in newCats:
+                            indexes = indexes+temp[temp[var.name] == element].index.to_list()
 
-                temp.loc[remainingIndexes,[var.name]]= temp.loc[remainingIndexes][var.name].apply(lambda row:var.catDictionary[row])
+                        if binningOnly == 0:temp.loc[indexes, [var.name]] = var.missingWoe
+                        else:temp.loc[indexes, [var.name]] = 'Missing'
+                        remainingIndexes=list(temp.drop(indexes,axis=0).index)
+                        #temp2 = temp.drop(indexes, axis=0)
+                    if binningOnly == 0:temp.loc[remainingIndexes,[var.name]]= temp.loc[remainingIndexes][var.name].apply(lambda row:var.catDictionary[row])
 
 
+                elif var.type == 'cont':
+                    if binningOnly == 0:
+                        temp.loc[remainingIndexes, [var.name]] = pd.cut(temp.loc[remainingIndexes][var.name], bins=var.bins,
+                                                                        labels=var.woe, ordered=False)
+                        temp = temp.fillna(var.missingWoe)
+                    else:
+                        temp.loc[remainingIndexes, [var.name]] = pd.cut(temp.loc[remainingIndexes][var.name], bins=var.bins)
+                        temp = temp.fillna('Missing')
 
-            elif var.type == 'cont':
-
-                temp.loc[remainingIndexes,[var.name]] = pd.cut(temp.loc[remainingIndexes][var.name], bins=var.bins, labels=var.woe ,ordered=False)
-                temp=temp.fillna(var.missingWoe)
-            output=output.join([temp])
+                output=output.join([temp])
         if target is not None:output=output.join(df[target])
         return output
-
-        # ivFile=pd.read_csv(iVfileLoc)
-        # df=pd.read_csv(dfLoc)
-        # #df=df.set_index('n_SK_ID_CURR')
-        # varList=list(set((ivFile['variable'])))
-        # #varList=varList.remove(nn)
-        # for var in varList:
-        #     #print(var)
-        #     dict={}
-        #     #var1=var.replace("n_","").replace('c_',"")
-        #
-        #     varSpecific=list(ivFile[ivFile['variable']==var]['varDetail'])
-        #
-        #     WoEs = list(ivFile[ivFile['variable'] == var]['WoE'])
-        #     var = var.replace("j", "j_")
-        #     for i in range(len(varSpecific)):
-        #         if var.find("j_")>0:t1=varSpecific[i].split("_____")
-        #         else : t1 = varSpecific[i].split("____")
-        #
-        #         dict[t1[1]]=WoEs[i]
-        #
-        #     try:
-        #
-        #         df[var]=df[var].apply(lambda row:dict[row])
-        #     except:
-        #         if var in df.columns: print(1)
-        #         print(var)
-        #     v=0
-        # return df
-    #x=convertToWoe("/home/pooja/PycharmProjects/datanalysis/feature_cross/crossDataset_binned.csv","/home/pooja/PycharmProjects/datanalysis/finalDatasets/iv_detailed_cross.csv" )
-    #x.to_csv("/home/pooja/PycharmProjects/datanalysis/feature_cross/final_binned.csv")
 
 
 
@@ -219,15 +225,21 @@ class IV():
         for feature in contCols:
             if self.verbose == 1: print(feature)
             temp = df[[feature]]
-            #print(feature)
             missings = temp[temp.isnull().any(axis=1)]  # 'getting missing dataset'
             missings[feature] = 'Missing'
 
             temp = temp.drop(missings.index, axis=0)  # 'non missing dataset'
 
             try:
+                if self.getWoe == 1:
+                    arr, bins = pd.qcut(temp[feature], q=qCut, duplicates='drop', retbins=True)
+                    bins[0]=bins[0]-0.00001
+                    bins[-1] = bins[-1] + 0.00001
+                    temp[feature] = pd.cut(temp[feature], bins=bins)
 
-                temp[ feature],bins= pd.qcut(temp[feature], q=qCut, duplicates='drop',retbins=True)
+
+                else:temp[ feature],bins= pd.qcut(temp[feature], q=qCut, duplicates='drop',retbins=True)
+
 
             except IndexError:
                 dices = min(df[feature].nunique(), qCut)
@@ -258,7 +270,6 @@ class IV():
                 varObject = variable(feature, 'cat')
                 varObject.bins = temp[feature].unique()
                 varObject.woe=[None for i in range(len(varObject.bins))]
-
                 self.variables[feature] = varObject
         if varCatConvert==1:
                 self.modeBinary = 0
@@ -293,22 +304,6 @@ class IV():
                 df, iv = self.calculate_woe_iv(X[[col,target]], col, target)
                 df['variable']=col
                 ivData=ivData.append(df)
-                # if self.modeBinary ==0:
-                #     ivData['ivValue'][col] = iv
-                #     ivData['variable'][col] = col
-                #
-                # else:
-                #     df.index=df.Value
-                #     ivData['varDetail']=col
-                #     #print(df)
-                #     ivData['ivValue'][col]=df['IV'][1]
-                #     ivData['Dist_Good'][col] = df['Distr_Good'][1]
-                #     ivData['Dist_Bad'][col] = df['Distr_Bad'][1]
-                #     ivData['WoE'][col] = df['WoE'][1]
-                #     ivData['badRate'][col] = df['Bad'][1] / float(df['All'][1])
-                #     ivData['%popuation'][col] = df['All'][1]/rowCount
-                #     ivData['variable'][col]=col.split('___')[0]
-
 
         return ivData
 if __name__ == '__main__':
