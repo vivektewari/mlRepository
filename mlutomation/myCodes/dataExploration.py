@@ -103,3 +103,40 @@ def corrGraph(df, features,location=None):
         sns.heatmap(cm, annot=True, cmap='viridis')
         if location is not None: plt.savefig(location + 'corrGraph.png')
         else : plt.show()
+def catSplitter(df,var,target):
+    df=df[[var,target]]
+    df=df.replace(np.nan,'Missing')
+    d=df.groupby(var)[target].mean().reset_index()
+    e=df.groupby(var)[target].count().reset_index()
+    f=d.set_index(var).join(e.set_index(var).rename(columns={target:'count'}))
+    f=f.sort_values(by=target)
+    return f
+def catGrouper(df,varDict):
+        """
+        :param df: DataFrame|for which variable needs to be grouped
+        :param varDict: dictionary|key is variable and values are grouped to be merged
+        :return: DataFrame| adding binary variable for different group in varDict and removing original var
+
+        """
+        zeroList=[]
+        output=df
+        for var in varDict.keys():
+                vals=varDict[var]
+                lCounter=1
+                for v in vals:
+                    if type(v).__name__=='list':
+                        output[var+"___"+str(lCounter)]=df[var].apply(lambda x:1 if x in v else 0)
+                        if int(output[var+"___"+str(lCounter)].sum()) == 0: zeroList.append(var+"___"+str(lCounter))
+                        lCounter+=1
+                    else:
+                        output[var+"___"+str(v)]=df[var].apply(lambda x:1 if x==v else 0)
+                        if int(output[var + "___" + str(v)].sum())==0:zeroList.append(var + "___" + str(v))
+                output=output.drop(var,axis=1)
+        print(zeroList)
+        return output
+def crossTab(df,var1,var2,varCount):
+    d=pd.pivot_table(data=df,
+                    index=var1,
+                    values=varCount,
+                    columns=var2,aggfunc=np.sum)
+    return d

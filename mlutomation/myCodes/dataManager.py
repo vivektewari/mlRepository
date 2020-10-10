@@ -120,7 +120,7 @@ class dataOwner():
     def getInitialReports(self):
         for card in self.dataCards:
             card.load()
-            temp=distReports(card.df)
+            temp=distReports(card.df,detail=True)
             d=dataObject(df=temp,name=card.name+"describe",loc=card.loc,loaded=1)
             d.save()
             d.unload()

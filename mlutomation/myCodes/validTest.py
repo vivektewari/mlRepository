@@ -12,7 +12,7 @@ import copy
 start=time.time()
 warnings.filterwarnings ("ignore")
 baseLoc='/home/pooja/PycharmProjects/homeCredit/' #tests2/' #'/home/pooja/PycharmProjects/homeCredit/'
-stage=12
+stage=11
 
 if stage==0:
     projectMan=projectOwner(loc='/home/pooja/PycharmProjects/homeCredit/')
@@ -95,7 +95,7 @@ elif stage==11:#produce the selected variable
     print("starting production")
     R=factoryMan.produceVar(indexes=dataMan.dataCards[2].df['SK_ID_CURR'],loc='/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/temp/')
     print(R.shape)
-    R.to_csv(baseLoc +folder+'/seldataTrial.csv')
+    R.to_csv(baseLoc +folder+'/seldataTrial_test.csv')
 
 elif stage==12:#saving a binned version:
     a = IV(getWoe=1, verbose=1)

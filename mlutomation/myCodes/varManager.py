@@ -50,51 +50,66 @@ class varStore():
     def getVars(self,d):
         varList=self.getVarTypes(d)
         varObjects=[]
-        type=['cont','cat']
+        type=['cont','numcat','cat']
 
-        for i in [0,1]:
+        for i in [0,1,2]:
 
             for v in varList[i]:
                 varObjects.append(rawVar(name=v, id=self.__varCount, dataset=d.name, pk=d.pk, rk=d.rk,type=type[i]))
                 self.__varCount+=1
         return varObjects
-    def multVar(self,varObjects,codes):#creates mult var
+    def multVar(self,varObjects,codes):#creates mult var names
         #type condition
         varObjectsfeatured=[]
         transCodes=str(codes).split("|")
-
-
         volunteer = varObjects[0]
         source = volunteer.source
         combs = list(combinations(varObjects, 2))
         for c in combs:
             for code in transCodes:
+                varob=[]
+                varob.append(rawVar(name=c[0].name + "|" + c[1].name, id=self.__varCount, dataset=source,
+                                    pk=volunteer.pk, rk=volunteer.rk, transformed=""))
                 for t in code.split(";"):
-                        m =t.split(":")
-                        if m[0] in ["add", "mult", "div"]:
-                            if c[0].type=='cont' and c[1].type=='cont':
-                                type='cont'
-                                varObjectsfeatured.append(
-                                rawVar(name=c[0].name + "|" + c[1].name, id=self.__varCount, dataset=source,
-                                           pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type))
-                                self.__varCount += 1
-                                if m[1]==2:
-                                    rawVar(name=c[1].name + "|" + c[0].name, id=self.__varCount, dataset=source,
-                                           pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type)
-                                    self.__varCount += 1
+                    m =t.split(":")
+                    myList = []
+                    if m[0] in ["add", "mult", "div"]:
+                        if c[0].type in ['cont','numcat'] and c[1].type in ['cont','numcat'] :
+                            type='cont'
+                            for v in varob:
+                                v.type='cont'
+                                v.transformed=v.transformed+";"+m[0]
+                                if m[1]=='2':
+                                    myList.append(rawVar(name=c[1].name + "|" + c[0].name, transformed=v.transformed, type=type))
 
-                        elif m[0] in ['catBin']:
-                            type='cat'
-                            varObjectsfeatured.append(
-                                rawVar(name=c[0].name + "|" + c[1].name, id=self.__varCount, dataset=source,
-                                       pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type))
-                            # varObjectsfeatured.append(
-                            #     rawVar(name=c[1].name + "|" + c[0].name, id=self.__varCount, dataset=source,
-                            #        pk=volunteer.pk, rk=volunteer.rk, transformed=m[0], type=type))
-                            self.__varCount += 1
+                    elif m[0] in ['catBin']:
+                        for v in varob:
+                            v.type = 'cat'
+                            v.transformed = m[0]
 
-                        else:pass
+                    elif m[0] in ['slice','rollup']:
+                        q=m[1].split(",")
+                        param=q[0]
+                        for v in varob:
+                            for k in q[1:]:
+                                myList.append(
+                                    rawVar(name=v.name, transformed=v.transformed+";"+m[0]+","+param+","+str(k), type=v.type))
+                        varob=[]
+                    varob.extend(myList)
+                    uy=0
 
+                for v in varob:
+                    if v.transformed=="":
+                        varob.remove(v)
+                        continue
+                    elif v.transformed[0]==";":
+                        v.transformed=v.transformed[1:]
+                    v.pk=volunteer.pk
+                    v.rk=volunteer.rk
+                    v.dataset=source
+                    v.id=self.__varCount
+                    self.__varCount+=1
+                varObjectsfeatured.extend(varob)
         return varObjectsfeatured
     def featEng(self,d,code):
         func=self.funcdict[code]
@@ -108,9 +123,9 @@ class varStore():
         numCols = set(allCols) - set(objectCols)
         uniques = pd.DataFrame({'nuniques': df[numCols].nunique()}, index=df[numCols].columns.values)
         numCats = list(uniques[uniques['nuniques'] < 25].index)
-        catCols = list(set(objectCols + numCats) -set([self.pk]))
-        contCols = list(set(allCols) - set(catCols)-set([self.pk]))
-        return [contCols ,catCols]
+        catCols = list(set(objectCols ) -set([self.pk]))
+        contCols = list(set(allCols) - set(catCols)-set(numCats)-set([self.pk]))
+        return [contCols ,numCats,catCols]
 
 def getDiagReport(df, col=None,code=None):
 
@@ -196,9 +211,9 @@ class varFactory():
 
             varCurtailed = vars[i * batch:min(i * batch + batch,total_var)]
             for c in code:
-                t=c.split(';')
 
-                if t[0]=='catBin':
+
+                if c=='catBin':
                     if self.train ==0:temp=self.IVMan.convertToWoe(df1[varCurtailed+[var1]],binningOnly=1)
                     else:temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
                     temp=temp.astype(str)
@@ -206,34 +221,34 @@ class varFactory():
                         temp[var1+"|"+v]=temp[var1]+ "_&_" + temp[v]
                     temp=temp.drop([var1]+varCurtailed,axis=1)
 
-                elif t[0]=='m':
+                elif c=='m':
                     temp = df1[varCurtailed].multiply(df1[var1])
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
-                elif t[0]=='div':
+                elif c=='div':
                     temp = df1[varCurtailed].div(df1[var1], axis = 0)
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
                     v=0
-                elif t[0]=='0':
+                elif c=='0':
                     temp=df1[varCurtailed]
 
-                elif t[0]=='rollUp':pass
-                elif t[0]=='slice':pass
+                elif c=='rollUp':pass
+                elif c=='slice':pass
                 else :temp=df1
 
-                if firstTime:
+            if firstTime:
                     if self.diag == 1:
                         temp=temp.join( self.target[self.targetCol])
                         tar=temp[self.targetCol]
                     else:output=temp
                     firstTime=False
-                else:
+            else:
                     if self.diag != 1:
                         output = pd.concat([output, temp],axis=1)
                     else:
                         temp['TARGET'] = tar
                         pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
                     del temp
-                if i %  batch == 0 and self.diag==1:
+            if i %  batch == 0 and self.diag==1:
                     pool.close()
                     pool.join()
                     pool = Pool(processes=cores)
@@ -360,9 +375,7 @@ class varOwner():
         dataList.save(self.loc)
 
 if __name__=='__main__':
-
-
-
+    pass
 
 
 

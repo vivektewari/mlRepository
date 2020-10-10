@@ -7,8 +7,8 @@ from iv import IV
 import pandas as pd
 import warnings
 warnings.filterwarnings ("ignore")
-baseLoc='/home/pooja/PycharmProjects/homeCredit/tests2/'
-stage=12
+baseLoc='/home/pooja/PycharmProjects/homeCredit/'
+stage=7
 
 if stage==0:
     projectMan=projectOwner(loc='/home/pooja/PycharmProjects/homeCredit/')
@@ -44,16 +44,11 @@ elif stage == 6:#produce the order of vars
     varMan.addVarFromDataObjects(dataMan.dataCards)
 
     varMan.saveVarcards()
-elif stage == 7:#produce the order of vars
-    varMan.load()
 
-    varMan.addVarFromDataObjects(dataMan.dataCards)
-
-    varMan.saveVarcards()
-elif stage == 8:# getting initial reorts for data cleaning
+elif stage == 7:# getting initial reorts for data cleaning
     dataMan.load()
     varMan.addVarFromDataObjects(dataMan.dataCards)
-    #varMan.saveVarcards()
+    #varMan.load()
     varMan.addCoVar(dataMan.dataCards)
     varMan.saveVarcards()
 
