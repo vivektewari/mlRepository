@@ -149,7 +149,7 @@ class IV():
 
         """
 
-        df1=df.replace(np.inf,np.nan)
+        df1=df.replace([np.inf,-np.inf],np.nan)
         output=df1[[]]
         if self.verbose==1:print("starting convertToWoe")
 

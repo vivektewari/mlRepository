@@ -64,12 +64,13 @@ class varStore():
         transCodes=str(codes).split("|")
         volunteer = varObjects[0]
         source = volunteer.source
-        combs = list(combinations(varObjects, 2))
-        for c in combs:
-            for code in transCodes:
+        for code in transCodes:
+            if "div" in code:combs = list(combinations(varObjects, 2))
+            else :combs=varObjects
+            for c in combs:
                 varob=[]
-                varob.append(rawVar(name=c[0].name + "|" + c[1].name, id=self.__varCount, dataset=source,
-                                    pk=volunteer.pk, rk=volunteer.rk, transformed=""))
+                if "div" in code:varob.append(rawVar(name=c[0].name + "|" + c[1].name,  transformed=""))
+                else:varob.append(rawVar(name=c.name,  transformed=""))
                 for t in code.split(";"):
                     m =t.split(":")
                     myList = []
@@ -106,7 +107,7 @@ class varStore():
                         v.transformed=v.transformed[1:]
                     v.pk=volunteer.pk
                     v.rk=volunteer.rk
-                    v.dataset=source
+                    v.source=source
                     v.id=self.__varCount
                     self.__varCount+=1
                 varObjectsfeatured.extend(varob)
@@ -127,8 +128,8 @@ class varStore():
         contCols = list(set(allCols) - set(catCols)-set(numCats)-set([self.pk]))
         return [contCols ,numCats,catCols]
 
-def getDiagReport(df, col=None,code=None):
-
+def getDiagReport(df, col=None,code=None,source=None):
+        #print(df.shape)
         final = distReports(df.drop(col,axis=1))
         if 'mean' not in final.columns:
             for i in range(0,4):final[str(i)]=""
@@ -141,7 +142,8 @@ def getDiagReport(df, col=None,code=None):
         final = final.join(final1)
 
         final['code']=code
-        final.to_csv('./report.csv',mode = 'a', header = False)
+        final['source'] = source
+        final.to_csv('./report_prev_appli.csv',mode = 'a', header = False)
         dfs= [df,binned,result,final,final1]
         for d1 in dfs:del d1
 
@@ -160,6 +162,7 @@ class varFactory():
         self.startTime = time.time()
         self.IVreport=pd.DataFrame
         self.train=train
+        self.source=""
 
 
     def break1(self,source):
@@ -194,6 +197,7 @@ class varFactory():
 
 
     def factory(self,df1,codes,var1,var2=None):
+        #print(var1,var2,codes)
         batch=self.batchSize
         #ToDo :add a condition so that data been first subset basis of indexes availaible in target
         cores = cpu_count()
@@ -210,8 +214,9 @@ class varFactory():
         for i in range(0, numberOfBatches):
 
             varCurtailed = vars[i * batch:min(i * batch + batch,total_var)]
+            #print(varCurtailed)
+            temp = df1[varCurtailed]
             for c in code:
-
 
                 if c=='catBin':
                     if self.train ==0:temp=self.IVMan.convertToWoe(df1[varCurtailed+[var1]],binningOnly=1)
@@ -225,15 +230,21 @@ class varFactory():
                     temp = df1[varCurtailed].multiply(df1[var1])
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
                 elif c=='div':
+
                     temp = df1[varCurtailed].div(df1[var1], axis = 0)
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
-                    v=0
+
                 elif c=='0':
                     temp=df1[varCurtailed]
 
-                elif c=='rollUp':pass
-                elif c=='slice':pass
-                else :temp=df1
+                elif 'rollup' in c :
+                    g=c.split(",")
+                    p0=g[0]
+                    p1=g[1]
+                    p2=g[2]
+                    temp=temp.groupby(temp.index)[temp.columns].agg(p2)
+                else :pass
+
 
             if firstTime:
                     if self.diag == 1:
@@ -242,34 +253,37 @@ class varFactory():
                     else:output=temp
                     firstTime=False
             else:
-                    if self.diag != 1:
-                        output = pd.concat([output, temp],axis=1)
-                    else:
-                        temp['TARGET'] = tar
-                        pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes))
-                    del temp
-            if i %  batch == 0 and self.diag==1:
-                    pool.close()
-                    pool.join()
-                    pool = Pool(processes=cores)
-                    gc.collect()
+                    if self.diag != 1:output = pd.concat([output, temp],axis=1)
+                    else:temp['TARGET'] = np.array(tar)
+            if self.diag==1:
+                        pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes,self.source))
+                        del temp
+                        if i %  batch == 0 :
+                            pool.close()
+                            pool.join()
+                            pool = Pool(processes=cores)
+                            gc.collect()
         if self.diag==1:
 
             pool.close()
             pool.join()
             return None
         else :
-            output.columns=[d+codes for d in output.columns]
+            output.columns=[d+codes+self.source for d in output.columns]
             return output
 
     def produceVar(self,indexes=None,loc=""):
         if self.diag==1:
-            final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code'])
-            final.to_csv('./report.csv',mode = 'w', header = True)
+            final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code','source'])
+            final.to_csv('./report_prev_appli.csv',mode = 'w', header = True)
         fileCount=0
         for d1 in self.dataCards:
             if d1.include==1:
+                self.source=d1.name
+                print(d1.name)
                 dict = self.break1(d1.name)
+                if dict is None:continue
+                dict={i:dict[i] for i in sorted(dict.keys())}
                 if dict is None: continue
                 d1.load()
 
@@ -278,46 +292,53 @@ class varFactory():
                 #if self.targetCol in df.columns: df = df.drop(self.targetCol, axis=1)
                 df=d1.df
                 df=df.set_index(self.pk)
-                if indexes is not None:targetIndex=indexes
-                elif self.target is not None:targetIndex=self.target.index
+                if indexes is not None:targetIndex=indexes#.intersection(set(df.index)))
+                elif self.target is not None:targetIndex=list(set(self.target.index).intersection(set(df.index)))
                 else :targetIndex=df.index
-                df=df.loc[targetIndex]
+                df=df.loc[list(set(df.index).intersection(set(targetIndex)))]
                 final = pd.DataFrame(index=targetIndex)
-
+                sliceVal=579
                 for t in dict.keys():
                     print(t)
+                    if 'slice' in t:
+                        t1=t.split(";")
+                        g = t1[0].split(",")
+                        p1 = g[1]
+                        p2 = g[2]
+                        if sliceVal!=p2:df1= df[df[p1] >= float(p2)]
+                    else:df1=df
                     if type(dict[t])!=list:
                         for v in dict[t].keys():
                             if len(dict[t][v])==0 :continue
-                            temp=self.factory(df[[v]+dict[t][v]],t,v, dict[t][v])
+                            temp=self.factory(df1[[v]+dict[t][v]],t,v, dict[t][v])
                             if self.diag != 1:
                                 final = final.join(temp)
 
                                 if final.shape[1]>self.batchSize:
                                     print("Creating Dataset no.:"+str(fileCount))
-                                    final.to_csv(loc+str(fileCount)+".csv")
+                                    final.to_csv(loc+str(fileCount)+".csv",index_label=self.pk)
                                     final=final[[]]
                                     fileCount+=1
 
                     else:
-                        temp=self.factory(df[dict[t]],t,dict[t])
+                        temp=self.factory(df1[dict[t]],t,dict[t])
                         if self.diag!=1:
                             if temp is not None:final=final.join(temp)
                             if final.shape[1] > self.batchSize:
                                 print("Creating Dataset no.:" + str(fileCount))
-                                final.to_csv(loc + str(fileCount) + ".csv")
+                                final.to_csv(loc + str(fileCount) + ".csv", index_label=self.pk)
                                 fileCount += 1
                                 final = final[[]]
 
-        if self.diag!=1:
-                final.to_csv(loc + str(fileCount) + ".csv")
-                final = final[[]]
-                fileCount += 1
+            if self.diag!=1:
+                    final.to_csv(loc + str(fileCount) + ".csv",index_label=self.pk)
+                    final = final[[]]
+                    fileCount += 1
 
-                for i in range(fileCount):
-                    print("joining"+str(i))
-                    temp=pd.read_csv(loc + str(i) + ".csv")
-                    final=final.join(temp.set_index(self.pk))
+        for i in range(fileCount):
+                        print("joining"+str(i))
+                        temp=pd.read_csv(loc + str(i) + ".csv")
+                        final=final.join(temp.set_index(self.pk))
 
 
 
@@ -368,6 +389,9 @@ class varOwner():
             if d.include==1:
                 rawVars = self.varStore.getVars(d)
                 self.varCards.extend(self.varStore.multVar(rawVars,d.transformation))
+
+
+
 
     def saveVarcards(self):
         frame=objectTodf(self.varCards)
