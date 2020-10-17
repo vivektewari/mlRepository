@@ -15,10 +15,10 @@ class dataOwner(TestCase):
     def test(self):
         dataset = dataManager.dataOwner(loc='/home/pooja/PycharmProjects/homeCredit/tests/dataManagerFiles/')
         dataset.addDatacards("/home/pooja/PycharmProjects/homeCredit/baseDatasets/")
-        dataset.saveDatacards() #works
+        dataset.save() #works
         c=dataset.fetchdatacards()
 
-        self.assertTrue(all([len(dataset.dataCards) == 7]), msg='may Be dataset object is not formed')
+        self.assertTrue(all([len(dataset.cards) == 7]), msg='may Be dataset object is not formed')
 
 
 

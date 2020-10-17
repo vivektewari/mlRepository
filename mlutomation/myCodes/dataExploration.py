@@ -39,7 +39,7 @@ def treatment_outlier(df, vars, bottomCaps=None, upperCaps=None, percentile=[0.0
 
 
 
-def distReports(df,ivReport=None,detail=False):
+def distReports(df,ivReport=None,detail=False,uniqueVaNum=10):
         mis = pd.DataFrame({'varName':df.columns.values,'missing':df.isnull().values.sum(axis=0)}, index=df.columns.values)  # new df from existing
         basta = (df.describe()).transpose()
 
@@ -49,7 +49,7 @@ def distReports(df,ivReport=None,detail=False):
         if detail:
                 uniques = pd.DataFrame({'nuniques': df.nunique()}, index=df.columns.values)
                 final =final.join(uniques)
-                final['uniqueValues'] = final['varName'].apply(lambda x: df[x].unique()[0:50])
+                final['uniqueValues'] = final['varName'].apply(lambda x: df[x].unique()[0:uniqueVaNum])
 
 
         if ivReport is not None :final=final.join(ivReport)

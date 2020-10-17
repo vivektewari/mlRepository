@@ -10,11 +10,11 @@ import time
 import gc
 from multiprocessing import Pool, Process, cpu_count
 class varInterface(ABC):
-    def __init__(self,name,id=None,dataset=None,pk=None,rk=None,type=None,transformed=0):
+    def __init__(self, name, id=None, source=None, pk=None, rk=None, type=None, transformed=0):
 
         self.name=name
         self.id=id
-        self.source=dataset
+        self.source=source
         self.pk=pk
         self.rk=rk
         self.type=type
@@ -55,7 +55,7 @@ class varStore():
         for i in [0,1,2]:
 
             for v in varList[i]:
-                varObjects.append(rawVar(name=v, id=self.__varCount, dataset=d.name, pk=d.pk, rk=d.rk,type=type[i]))
+                varObjects.append(rawVar(name=v, id=self.__varCount, source=d.name, pk=d.pk, rk=d.rk,type=type[i]))
                 self.__varCount+=1
         return varObjects
     def multVar(self,varObjects,codes):#creates mult var names
@@ -128,8 +128,8 @@ class varStore():
         contCols = list(set(allCols) - set(catCols)-set(numCats)-set([self.pk]))
         return [contCols ,numCats,catCols]
 
-def getDiagReport(df, col=None,code=None,source=None):
-        #print(df.shape)
+def getDiagReport(df, col=None,code=None,source=None,diagFile='./diagReport.csv'):
+
         final = distReports(df.drop(col,axis=1))
         if 'mean' not in final.columns:
             for i in range(0,4):final[str(i)]=""
@@ -143,13 +143,13 @@ def getDiagReport(df, col=None,code=None,source=None):
 
         final['code']=code
         final['source'] = source
-        final.to_csv('./report_prev_appli.csv',mode = 'a', header = False)
+        final.to_csv(diagFile,mode = 'a', header = False)
         dfs= [df,binned,result,final,final1]
         for d1 in dfs:del d1
 
 
 class varFactory():
-    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10,train=1):
+    def __init__(self,varList,dataCards,diag=1,target=None,targetCol=None,pk=None,batchSize=10,train=1,diagFile=""):
         self.varDF=varList
         self.dataCards=dataCards
         self.func={'catBin':self.factory,'0':self.doNothing}
@@ -162,6 +162,7 @@ class varFactory():
         self.startTime = time.time()
         self.IVreport=pd.DataFrame
         self.train=train
+        self.diagFile=diagFile
         self.source=""
 
 
@@ -197,7 +198,6 @@ class varFactory():
 
 
     def factory(self,df1,codes,var1,var2=None):
-        #print(var1,var2,codes)
         batch=self.batchSize
         #ToDo :add a condition so that data been first subset basis of indexes availaible in target
         cores = cpu_count()
@@ -205,9 +205,14 @@ class varFactory():
 
         code=str(codes).split(";")
         firstTime=True
-        if self.targetCol in var1:return None
-        elif var2 is not None:vars=var2
-        else:vars=var1
+        if self.targetCol ==var1:return None
+        elif var2 is not None:vars = var2
+        else:vars = var1
+        if self.targetCol in vars:vars.remove(self.targetCol)
+
+
+
+        if vars==[]: return None
         total_var = len(list(vars))
         numberOfBatches = int(total_var/ batch)+1
 
@@ -222,6 +227,8 @@ class varFactory():
                     if self.train ==0:temp=self.IVMan.convertToWoe(df1[varCurtailed+[var1]],binningOnly=1)
                     else:temp= self.IVMan.binning(df1[varCurtailed+[var1]], maxobjectFeatures=100, varCatConvert=1)
                     temp=temp.astype(str)
+                    varCurtailed=list(set(varCurtailed).difference(set(self.IVMan.excludeList)))
+                    if var1 in self.IVMan.excludeList:continue
                     for v in varCurtailed:
                         temp[var1+"|"+v]=temp[var1]+ "_&_" + temp[v]
                     temp=temp.drop([var1]+varCurtailed,axis=1)
@@ -230,7 +237,6 @@ class varFactory():
                     temp = df1[varCurtailed].multiply(df1[var1])
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
                 elif c=='div':
-
                     temp = df1[varCurtailed].div(df1[var1], axis = 0)
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
 
@@ -256,7 +262,7 @@ class varFactory():
                     if self.diag != 1:output = pd.concat([output, temp],axis=1)
                     else:temp['TARGET'] = np.array(tar)
             if self.diag==1:
-                        pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes,self.source))
+                        pool.apply_async(getDiagReport, args=(temp,self.targetCol,codes,self.source,self.diagFile))
                         del temp
                         if i %  batch == 0 :
                             pool.close()
@@ -275,7 +281,7 @@ class varFactory():
     def produceVar(self,indexes=None,loc=""):
         if self.diag==1:
             final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code','source'])
-            final.to_csv('./report_prev_appli.csv',mode = 'w', header = True)
+            final.to_csv(self.diagFile,mode = 'w', header = True)
         fileCount=0
         for d1 in self.dataCards:
             if d1.include==1:
@@ -295,6 +301,7 @@ class varFactory():
                 if indexes is not None:targetIndex=indexes#.intersection(set(df.index)))
                 elif self.target is not None:targetIndex=list(set(self.target.index).intersection(set(df.index)))
                 else :targetIndex=df.index
+                if self.targetCol not in df.columns:df=df.join(self.target)
                 df=df.loc[list(set(df.index).intersection(set(targetIndex)))]
                 final = pd.DataFrame(index=targetIndex)
                 sliceVal=579
@@ -389,9 +396,6 @@ class varOwner():
             if d.include==1:
                 rawVars = self.varStore.getVars(d)
                 self.varCards.extend(self.varStore.multVar(rawVars,d.transformation))
-
-
-
 
     def saveVarcards(self):
         frame=objectTodf(self.varCards)

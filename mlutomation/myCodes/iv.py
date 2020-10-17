@@ -50,6 +50,7 @@ class IV():
         self.modeBinary=1
         self.verbose=verbose
         self.loc=None
+        self.excludeList=[]
 
     def saveVarcards(self,loc=None,name='ivReport'):
         cards=self.variables.values()
@@ -149,7 +150,7 @@ class IV():
 
         """
 
-        df1=df.replace([np.inf,-np.inf],np.nan)
+        df1=df.replace(np.inf,np.nan)
         output=df1[[]]
         if self.verbose==1:print("starting convertToWoe")
 
@@ -273,6 +274,7 @@ class IV():
                 self.variables[feature] = varObject
         if varCatConvert==1:
                 self.modeBinary = 0
+                self.excludeList=excludedList
                 if target is None: return output #.join(df[[target]])
                 else: return output.join(df[[target]])
 

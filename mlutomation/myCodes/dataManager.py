@@ -33,7 +33,7 @@ class dataObject():
         if self.loaded!=1:
             loc1= self.loc + self.name + '.csv'
             self.df=pd.read_csv(loc1)
-        else :pass
+        else :self.loaded=1
     def save(self, loc=None):
 
         if loc is None :loc1=self.loc+""
@@ -56,8 +56,8 @@ class dataObject():
         train, valid = train_test_split(df, train_size=trainSize,
                                                   test_size=validSize, random_state=0, shuffle=True)
         if loc is not None:
-            train.to_csv(loc+"train.csv")
-            valid.to_csv(loc+"valid.csv")
+            train.to_csv(loc+"train.csv",index=False)
+            valid.to_csv(loc+"valid.csv",index=False)
     def append(self,df):
         self.df.append(df)
     def getVariables(self):
@@ -78,13 +78,13 @@ class dataOwner():
         self.loc=loc
         self.pk=pk
         self.dataLoc=self.loc+"datasets/"
-        self.dataCards=[]
+        self.cards=[]
 
 
     def load(self):
         temp = dataObject(loc=self.loc, name="book")
         temp.load()
-        self.dataCards = dfToObject(temp.df, dataObject)
+        self.cards = dfToObject(temp.df, dataObject)
 
     def addDatacards(self,loc):
         """
@@ -92,39 +92,53 @@ class dataOwner():
         :param loc:
         :return:
         """
-        self.dataCards=dataObject.extractDatas(loc)
-        self.saveDatacards()
-    def saveDatacards(self):
-        frame=objectTodf(self.dataCards)
+        self.cards=dataObject.extractDatas(loc)
+
+    def save(self):
+        frame=objectTodf(self.cards)
         dataList=dataObject(df=frame,name='book')
         dataList.save(self.loc)
+    def makeTargetFile(self,file):
+        data=pd.read_csv(self.loc+'baseDatasets/'+file)
+        data[[self.pk,self.target]].to_csv(self.loc+'baseDatasets/target.csv',index=False)
+    def addParamsToCards(self):
+        for card in self.cards:
+            card.load()
+            card.shape=card.df.shape
+            card.df=0
+
 
     def getRelevantData(self):
-            for card in self.dataCards:
+            for card in self.cards:
 
                 if card.use in ['train','valid','test']:
                     card.load()
                     relevantpks=list(card.df[self.pk])
                     folderName=card.use
-                    for card in self.dataCards:
+                    saveToLoc = self.loc + folderName + "/"
+                    do = dataObject(name=card.name, df=card.df, primaryKey=card.pk, rollupKey=card.pk,
+                                    include=card.include, loc=saveToLoc)
+                    do.save()
+                    for card in self.cards:
                         if card.use in ['train', 'valid','test']:
                             pass
                         else:
                             card.load()
                             temp=card.df
-                            saveToLoc = self.loc + folderName + "/"
                             relevantDF=temp[temp[self.pk].isin(relevantpks)]
+                            saveToLoc = self.loc + folderName + "/"
                             do=dataObject(name=card.name,df=relevantDF,primaryKey=card.pk,rollupKey=card.pk,include=card.include,loc=saveToLoc)
                             do.save()
 
     def getInitialReports(self):
-        for card in self.dataCards:
+        for card in self.cards:
             card.load()
             temp=distReports(card.df,detail=True)
             d=dataObject(df=temp,name=card.name+"describe",loc=card.loc,loaded=1)
             d.save()
             d.unload()
             card.unload()
+
 
 
 

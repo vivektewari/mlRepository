@@ -45,29 +45,29 @@ elif stage ==5:#get initial reports for data cleaning; data cleaning is done on 
 elif stage == 6:#produce the order of vars
     dataMan.load()
 
-    varMan.addVarFromDataObjects(dataMan.dataCards)
+    varMan.addVarFromDataObjects(dataMan.cards)
 
     varMan.saveVarcards()
 elif stage == 7:#produce the order of vars
     varMan.load()
 
-    varMan.addVarFromDataObjects(dataMan.dataCards)
+    varMan.addVarFromDataObjects(dataMan.cards)
 
     varMan.saveVarcards()
 elif stage == 8:# getting initial reorts for data cleaning
     dataMan.load()
-    varMan.addVarFromDataObjects(dataMan.dataCards)
+    varMan.addVarFromDataObjects(dataMan.cards)
     #varMan.saveVarcards()
-    varMan.addCoVar(dataMan.dataCards)
+    varMan.addCoVar(dataMan.cards)
     varMan.saveVarcards()
 
 
 elif stage == 9:# factory produce the vars
     varMan.load()
     dataMan.load()
-    dataMan.dataCards[7].load()
-    factoryMan=varFactory(varMan.getVarDF(),dataMan.dataCards,diag=0,pk='SK_ID_CURR',targetCol='TARGET',batchSize=10)
-    R=factoryMan.produceVar(indexes=dataMan.dataCards[7].df[dataMan.pk])
+    dataMan.cards[7].load()
+    factoryMan=varFactory(varMan.getVarDF(), dataMan.cards, diag=0, pk='SK_ID_CURR', targetCol='TARGET', batchSize=10)
+    R=factoryMan.produceVar(indexes=dataMan.cards[7].df[dataMan.pk])
     print(R.shape)
     R.to_csv(dataMan.loc + folder + '/seldata.csv')
 elif stage==10: #getting the selected variable
@@ -83,24 +83,24 @@ elif stage==10: #getting the selected variable
 elif stage==11:#produce the selected variable
     dataMan.load()
     varMan.load()
-    dataMan.dataCards[2].load()
+    dataMan.cards[2].load()
 
 
-    factoryMan = varFactory(varMan.getVarDF(), dataMan.dataCards, diag=0, target=dataMan.dataCards[2].df,
-                            pk='SK_ID_CURR',targetCol='TARGET',batchSize=20,train=0)
+    factoryMan = varFactory(varMan.getVarDF(), dataMan.cards, diag=0, target=dataMan.cards[2].df,
+                            pk='SK_ID_CURR', targetCol='TARGET', batchSize=20, train=0)
 
     a=IV(getWoe=1)
     a.load('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/',name='ivResults')
     factoryMan.IVMan=a
     print("starting production")
-    R=factoryMan.produceVar(indexes=dataMan.dataCards[2].df['SK_ID_CURR'],loc='/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/temp/')
+    R=factoryMan.produceVar(indexes=dataMan.cards[2].df['SK_ID_CURR'], loc='/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/temp/')
     print(R.shape)
     R.to_csv(baseLoc +folder+'/seldataTrial_test.csv')
 
 elif stage==12:#saving a binned version:
     a = IV(getWoe=1, verbose=1)
     dataMan.load()
-    dataMan.dataCards[2].load()
+    dataMan.cards[2].load()
     final = pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/comb1.csv')  # added post run
     final = final[final['select2'] == 1]
     vars = list(final['Variable'])
@@ -120,14 +120,14 @@ elif stage==13:
     pass
     a=IV(getWoe=1,verbose=1)
     dataMan.load()
-    dataMan.dataCards[2].load()
+    dataMan.cards[2].load()
     final = pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/comb1.csv') #added post run
     final = final[final['select2'] == 1]
     vars = list(final['Variable'])
     train = pd.read_csv('/home/pooja/PycharmProjects/homeCredit/dataManagerFiles/train/application_train.csv')
     train = train.set_index(dataMan.pk).drop('Unnamed: 0',axis=1)
     #train=train[vars]
-    train=train.join(dataMan.dataCards[2].df.set_index(dataMan.pk))#joining target
+    train=train.join(dataMan.cards[2].df.set_index(dataMan.pk))#joining target
 
     binned = a.binning(train, 'TARGET', maxobjectFeatures=300, varCatConvert=1)
     c1 = copy.deepcopy(a.variables)
@@ -200,8 +200,8 @@ elif stage==15:
     train=train.set_index('SK_ID_CURR').drop('Unnamed: 0', axis=1)
     train=train[vars]
     dataMan.load()
-    dataMan.dataCards[2].load()
-    final=train.join(dataMan.dataCards[2].df.set_index(dataMan.pk))
+    dataMan.cards[2].load()
+    final=train.join(dataMan.cards[2].df.set_index(dataMan.pk))
     final.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/dataFormodel_withTarget.csv')
 
 elif stage==16:#get the plots
