@@ -8,7 +8,7 @@ import pandas as pd
 import warnings
 warnings.filterwarnings ("ignore")
 baseLoc='/home/pooja/PycharmProjects/titanic/'
-stage=9 #1
+stage=9#1
 target='Survived'
 pk='PassengerId'
 if stage==0:
@@ -27,9 +27,10 @@ if stage==1: #trainValidSplit
     main.load()
     dataObject.trainValidSplit(df=main.df,loc=main.loc,trainSize=0.8)
 elif stage==2:#get the data files and user will define train test and valid
+    folder = 'train/'
     dataMan=dataOwner(loc=baseLoc+'dataManagerFiles/', pk=pk)
-    dataMan.addDatacards( baseLoc+'baseDatasets/')
-
+    dataMan.addDatacards( dataMan.loc+folder)
+    dataMan.save()
 elif stage == 3:#suset dataset for all the datafile basis of it belongs to test,valid,train and puts it in required folder.
     dataMan=dataOwner(loc=baseLoc+'dataManagerFiles/', pk=pk)
     dataMan.load()
@@ -43,8 +44,8 @@ elif stage == 4: #changed folder for data,get datacards ,user to feed primary ,r
 elif stage ==5:#get initial reports for data cleaning; data cleaning is done on kaggle interface
     dataMan.load()
     dataMan.getInitialReports()
-    df=pd.read_csv(baseLoc+'baseDatasets/main.csv')
-    plotGrabh(df,target=target,location=baseLoc+'baseDatasets/graphs/')
+    #df=pd.read_csv(baseLoc+'baseDatasets/main.csv')
+    #plotGrabh(df,target=target,location=baseLoc+'baseDatasets/graphs/')
 elif stage == 6:#produce the order of vars
     dataMan.addDatacards(dataMan.loc + folder)
     dataMan.addParamsToCards()
@@ -62,19 +63,37 @@ elif stage == 7:# getting initial reorts for data cleaning
 elif stage == 9:# factory produce the vars
     varMan.load()
     dataMan.load()
-    dataMan.cards[0].load()
-    factoryMan=varFactory(varMan.getVarDF(), dataMan.cards, diag=1, target=dataMan.cards[0].df, pk=pk, targetCol=target, batchSize=100,diagFile=dataMan.loc+folder+"IVreport.csv")
-    factoryMan.produceVar()
-elif stage==10: #getting the selected variable
-    select=pd.read_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/report1.csv')
-    select=select[select['select']==1].rename(columns={'varName':'name','code':'transformed'})
-    select=select.drop_duplicates(['name','transformed'])
-    varMan.load()
-    storeCard=varMan.getVarDF()
-    d=set(select.name).difference(set(storeCard.name))
+    dataMan.cards[1].load()
+    #target=None
+    tar=dataMan.cards[1].df
+    book=varMan.getVarDF()
+    #book['source']='testWithDummies'
+    factoryMan=varFactory(book, dataMan.cards, diag=1, target=tar, pk=pk, targetCol=target, batchSize=100,diagFile=dataMan.loc+folder+"IVreport.csv")
+    f=factoryMan.produceVar()
 
-    finalStoreCard=pd.merge(storeCard,select, on=['name','transformed'],how='inner')
-    finalStoreCard.to_csv('/home/pooja/PycharmProjects/pythonProject/mlutomation/myCodes/sel.csv')
+    if f is not None:f.to_csv(dataMan.loc+folder+"/mainwithCovars.csv",index_label=pk)
+elif stage==10: #getting the selected variable
+    dataMan.load()
+    dataMan.cards[1].load()
+    tar = dataMan.cards[1].df
+    f=pd.read_csv(dataMan.loc + folder + "/mainwithCovars.csv", index_col=pk)
+    f=f.join(tar.set_index(pk))
+    f2 = pd.read_csv(dataMan.loc + folder + "/testwithCovars.csv", index_col=pk)
+    f2.columns = [name.replace("testWithDummies", "mainWithDummies") for name in f2.columns]
+    a = IV(getWoe=1)
+    binned = a.binning(f, target, maxobjectFeatures=300, varCatConvert=1)
+    ivData = a.iv_all(binned, target)
+
+    converted_train = a.convertToWoe(f, binningOnly=0)
+    a.saveVarcards(baseLoc, 'final_woe')
+    new = IV()
+    new.load(baseLoc, 'final_woe')
+    converted_train = new.convertToWoe(f, binningOnly=0)
+    converted_train2 = new.convertToWoe(f2, binningOnly=0)
+
+    converted_train.to_csv(baseLoc+"0mainwithCovars.csv")
+    converted_train2.to_csv(baseLoc + "0testwithCovars.csv")
+
 elif stage==11:#produce the selected variable
     dataMan.load()
     dataMan.cards[2].load()

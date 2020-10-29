@@ -10,7 +10,7 @@ import time
 import gc
 from multiprocessing import Pool, Process, cpu_count
 class varInterface(ABC):
-    def __init__(self, name, id=None, source=None, pk=None, rk=None, type=None, transformed=0):
+    def __init__(self, name, id=None, source=None, pk=None, rk=None, type=None, transformed='0',select=0):
 
         self.name=name
         self.id=id
@@ -19,7 +19,7 @@ class varInterface(ABC):
         self.rk=rk
         self.type=type
         self.transformed=transformed
-
+        self.select=select
 class rawVar(varInterface):
 
     pass
@@ -65,11 +65,11 @@ class varStore():
         volunteer = varObjects[0]
         source = volunteer.source
         for code in transCodes:
-            if "div" in code:combs = list(combinations(varObjects, 2))
+            if "div" in code or "mult" in code:combs = list(combinations(varObjects, 2))
             else :combs=varObjects
             for c in combs:
                 varob=[]
-                if "div" in code:varob.append(rawVar(name=c[0].name + "|" + c[1].name,  transformed=""))
+                if "div" in code or "mult" in code:varob.append(rawVar(name=c[0].name + "|" + c[1].name,  transformed=""))
                 else:varob.append(rawVar(name=c.name,  transformed=""))
                 for t in code.split(";"):
                     m =t.split(":")
@@ -80,8 +80,9 @@ class varStore():
                             for v in varob:
                                 v.type='cont'
                                 v.transformed=v.transformed+";"+m[0]
-                                if m[1]=='2':
-                                    myList.append(rawVar(name=c[1].name + "|" + c[0].name, transformed=v.transformed, type=type))
+                                if len(m)>1:
+                                    if m[1]=='2':
+                                        myList.append(rawVar(name=c[1].name + "|" + c[0].name, transformed=v.transformed, type=type))
 
                     elif m[0] in ['catBin']:
                         for v in varob:
@@ -141,9 +142,9 @@ def getDiagReport(df, col=None,code=None,source=None,diagFile='./diagReport.csv'
         final1=pd.DataFrame(final1)
         final = final.join(final1)
 
-        final['code']=code
+        final['transformed']=code
         final['source'] = source
-        final.to_csv(diagFile,mode = 'a', header = False)
+        final.to_csv(diagFile,mode = 'a', header = False,index=False)
         dfs= [df,binned,result,final,final1]
         for d1 in dfs:del d1
 
@@ -158,6 +159,8 @@ class varFactory():
         self.batchSize=batchSize
         self.pk=pk
         if target is not None:self.target = target.set_index(self.pk)
+        else: self.target=None
+
         self.targetCol = targetCol
         self.startTime = time.time()
         self.IVreport=pd.DataFrame
@@ -185,7 +188,7 @@ class varFactory():
             dict1={}
             df1 = df[df['transformed'] == t]
             if df1['var2'].values[0]==None :
-                dict[t]=list(df1['var1'])
+                dict[str(t)]=list(df1['var1'])
             else:
                 var1=df1['var1']
                 for v in var1:
@@ -233,8 +236,8 @@ class varFactory():
                         temp[var1+"|"+v]=temp[var1]+ "_&_" + temp[v]
                     temp=temp.drop([var1]+varCurtailed,axis=1)
 
-                elif c=='m':
-                    temp = df1[varCurtailed].multiply(df1[var1])
+                elif c=='mult':
+                    temp = df1[varCurtailed].multiply(df1[var1], axis = 0)
                     temp.columns = [var1+"|"+col  for col in varCurtailed]
                 elif c=='div':
                     temp = df1[varCurtailed].div(df1[var1], axis = 0)
@@ -280,8 +283,8 @@ class varFactory():
 
     def produceVar(self,indexes=None,loc=""):
         if self.diag==1:
-            final=pd.DataFrame(columns=['varName','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','code','source'])
-            final.to_csv(self.diagFile,mode = 'w', header = True)
+            final=pd.DataFrame(columns=['name','missing','missing_percent','count','mean','std','min','25%','50%','75%','max','IV','transformed','source','select'])
+            final.to_csv(self.diagFile,mode = 'w', header = True,index=False)
         fileCount=0
         for d1 in self.dataCards:
             if d1.include==1:
@@ -301,7 +304,7 @@ class varFactory():
                 if indexes is not None:targetIndex=indexes#.intersection(set(df.index)))
                 elif self.target is not None:targetIndex=list(set(self.target.index).intersection(set(df.index)))
                 else :targetIndex=df.index
-                if self.targetCol not in df.columns:df=df.join(self.target)
+                if self.targetCol not in df.columns and self.diag==1:df=df.join(self.target)
                 df=df.loc[list(set(df.index).intersection(set(targetIndex)))]
                 final = pd.DataFrame(index=targetIndex)
                 sliceVal=579
@@ -337,10 +340,10 @@ class varFactory():
                                 fileCount += 1
                                 final = final[[]]
 
-            if self.diag!=1:
-                    final.to_csv(loc + str(fileCount) + ".csv",index_label=self.pk)
-                    final = final[[]]
-                    fileCount += 1
+                if self.diag!=1:
+                        final.to_csv(loc + str(fileCount) + ".csv",index_label=self.pk)
+                        final = final[[]]
+                        fileCount += 1
 
         for i in range(fileCount):
                         print("joining"+str(i))
@@ -380,6 +383,19 @@ class varOwner():
         temp = dataObject(loc=self.loc, name="book")
         temp.load()
         return temp.df
+    def getSubsetVar(self,dataObject,join=['name','source','transformed']):
+        varDF=self.getVarDF()
+        dataObject.load()
+        tempDF=dataObject.df
+        tempDF=tempDF[tempDF['select']==1]
+        temp=varDF.set_index(join).join(tempDF[join].set_index(join),how='inner').reset_index()
+        indexes=varDF[varDF['id'].isin(temp['id'])].index()
+        varDF.loc[indexes,['select']]=1
+        self.saveVarcards(varDF)
+
+
+
+
     def load(self,varClass=varInterface,temp=None):
         if temp is None:
             temp = dataObject(loc=self.loc, name="book")
@@ -397,8 +413,8 @@ class varOwner():
                 rawVars = self.varStore.getVars(d)
                 self.varCards.extend(self.varStore.multVar(rawVars,d.transformation))
 
-    def saveVarcards(self):
-        frame=objectTodf(self.varCards)
+    def saveVarcards(self,frame=None):
+        if frame is None:frame=objectTodf(self.varCards)
         dataList=dataObject(df=frame,name='book')
         dataList.save(self.loc)
 

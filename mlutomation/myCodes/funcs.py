@@ -213,4 +213,20 @@ def lorenzCurve(y_test,y_score):
     plt.legend(loc="lower right")
     plt.show()
 
+def getMean(df,var1,target):
+
+    main=df
+    for var in var1:
+       a= df[[var,target]].dropna(subset=[target]).groupby(var)[target].agg(['mean']).rename(columns={'mean':var+'MeanT'})
+       main=main.join(a,on=var)
+       # main[var+'MeanT']=main.apply(lambda row:row[var+'MeanT'] if np.isnan(row[target]) else (np.nan if (row[var+'CountT']==1 or row[var+'CountT']==np.nan) else (row[var+'MeanT']*row[var+'CountT']-row[target])/(row[var+'CountT']-1)),axis=1)
+       # main=main.drop(var+'CountT',axis=1)
+    return main
+def getCount(df,var1):
+
+    main=df
+    for var in var1:
+       a= df[[var]].groupby(var)[var].agg(['count']).rename(columns={'count':var+'Count'})
+       main=main.join(a,on=var)
+    return main
 

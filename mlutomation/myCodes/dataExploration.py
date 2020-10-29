@@ -79,6 +79,18 @@ def plotGrabh(df,target,location):
                 temp2[col].value_counts().plot(kind='pie', autopct='%1.1f%%',
                                       pctdistance=0.9, labeldistance=1.2, radius=1)
                 plt.savefig(location+col+'.png')
+                if True:
+                    fig = plt.figure(figsize=(10, 10))
+                    sns.countplot(x=col, hue=target, data=df)
+
+                    plt.xlabel('{}'.format(col), size=20, labelpad=15)
+                    plt.ylabel('Count', size=20, labelpad=15)
+                    plt.tick_params(axis='x', labelsize=20)
+                    plt.tick_params(axis='y', labelsize=20)
+
+                    plt.legend(['0', '1'], loc='upper center', prop={'size': 18})
+                    plt.title('Feature'.format(col), size=20, y=1.05)
+                    plt.savefig(location + col + '_counts.png')
         #df[target]=df[target].astype('category')
         for col in contCols:
                 fig = plt.figure(figsize=(8, 8))

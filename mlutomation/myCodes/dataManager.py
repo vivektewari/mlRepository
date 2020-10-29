@@ -132,12 +132,13 @@ class dataOwner():
 
     def getInitialReports(self):
         for card in self.cards:
-            card.load()
-            temp=distReports(card.df,detail=True)
-            d=dataObject(df=temp,name=card.name+"describe",loc=card.loc,loaded=1)
-            d.save()
-            d.unload()
-            card.unload()
+            if card.include==1:
+                card.load()
+                temp=distReports(card.df,detail=True)
+                d=dataObject(df=temp,name=card.name+"describe",loc=card.loc,loaded=1)
+                d.save()
+                d.unload()
+                card.unload()
 
 
 
